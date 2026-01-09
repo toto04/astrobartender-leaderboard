@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { neon } from "@neondatabase/serverless"
 import { type Context, Hono } from "hono"
+import { cors } from "hono/cors"
 
 const MIN_SESSION_AGE_MS = 45 * 1000
 const MAX_SESSION_AGE_MS = 20 * 60 * 1000
@@ -26,6 +27,15 @@ const handleError = (c: Context, error: unknown) => {
   console.error(error)
   return c.json({ error: "Internal server error" }, 500)
 }
+
+app.use(
+  "*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+  })
+)
 
 app.get("/", async (c) => {
   try {
