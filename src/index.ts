@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto"
 import { neon } from "@neondatabase/serverless"
 import { type Context, Hono } from "hono"
 import { cors } from "hono/cors"
+import { getConnInfo } from "hono/vercel"
+
+// from https://github.com/Super-Genius/ElementalEngine2/blob/master/Common/Databases/BadWords.dbx
+import badWords from "./words.json" with { type: "json" }
 
 const MIN_SESSION_AGE_MS = 45 * 1000
 const MAX_SESSION_AGE_MS = 20 * 60 * 1000
@@ -80,6 +84,10 @@ app.get("/", async (c) => {
   }
 })
 
+app.get("/words", (c) => {
+  return c.json(badWords)
+})
+
 app.post("/start", async (c) => {
   try {
     const token = randomUUID()
@@ -94,6 +102,7 @@ app.post("/start", async (c) => {
 })
 
 app.post("/submit-score", async (c) => {
+  const info = getConnInfo(c)
   let body: unknown
 
   try {
@@ -113,14 +122,15 @@ app.post("/submit-score", async (c) => {
       return c.json({ error: "Missing or invalid token" }, 400)
     }
 
-    if (typeof player_name !== "string" || player_name.trim().length === 0) {
+    const playerName = typeof player_name === "string" ? player_name.trim().toLowerCase() : ""
+    if (playerName.length !== 3 || badWords.includes(playerName)) {
       return c.json({ error: "Missing or invalid player_name" }, 400)
     }
 
     const scoreValue = Number(score)
 
-    if (!Number.isFinite(scoreValue) || scoreValue < 0 || scoreValue > SCORE_MAX) {
-      return c.json({ error: "Score must be between 0 and 10,000" }, 400)
+    if (!Number.isFinite(scoreValue) || scoreValue < 10 || scoreValue > SCORE_MAX) {
+      return c.json({ error: "Score must be between 10 and 10,000" }, 400)
     }
 
     const gigValue = Number(gig_id)
@@ -136,6 +146,7 @@ app.post("/submit-score", async (c) => {
       return c.json({ error: "Invalid or expired session token" }, 400)
     }
     await sql`DELETE FROM sessions WHERE token = ${token}`
+    await sql`DELETE FROM sessions WHERE issued_at < (now() - '25 minutes'::interval);`
 
     const issuedAtMs = Date.parse(sessionRows[0].issued_at)
 
@@ -157,8 +168,8 @@ app.post("/submit-score", async (c) => {
     }
 
     const inserted = await sql`
-      INSERT INTO hi_scores (gig_id, shift_id, player_name, score)
-      VALUES (${gigValue}, ${shiftValue}, ${player_name.trim().slice(0, 64)}, ${scoreValue})
+      INSERT INTO hi_scores (gig_id, shift_id, player_name, score, ip_addr)
+      VALUES (${gigValue}, ${shiftValue}, ${playerName.toUpperCase()}, ${scoreValue}, ${info.remote.address ?? "unknown"})
       RETURNING id, gig_id, shift_id, player_name, score
     `
 
