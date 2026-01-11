@@ -10,7 +10,7 @@ import badWords from "./words.json" with { type: "json" }
 const MIN_SESSION_AGE_MS = 45 * 1000
 const MAX_SESSION_AGE_MS = 20 * 60 * 1000
 const SCORE_MAX = 10_000
-const RESULT_LIMIT = 1000
+const RESULT_LIMIT = 100
 
 const connectionString = process.env.DATABASE_URL
 
